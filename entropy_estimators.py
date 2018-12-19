@@ -1,4 +1,15 @@
+
+# coding: utf-8
+
+# In[2]:
+
+
 #!/usr/bin/env python
+# coding: utf-8
+
+# In[2]:
+
+
 # Written by Greg Ver Steeg
 # See readme.pdf for documentation
 # Or go to http://www.isi.edu/~gregv/npeet.html
@@ -9,6 +20,8 @@ from math import log
 import numpy.random as nr
 import numpy as np
 import random
+import torch
+from torch.autograd import Variable
 
 # CONTINUOUS ESTIMATORS
 
@@ -18,6 +31,7 @@ def entropy(x, k=3, base=2):
         if x is a one-dimensional scalar and we have four samples
     """
     assert k <= len(x) - 1, "Set k smaller than num. samples - 1"
+    x = to_np_array(x)
     d = len(x[0])
     N = len(x)
     intens = 1e-10  # small noise to break degeneracy, see doc.
@@ -25,30 +39,31 @@ def entropy(x, k=3, base=2):
     tree = ss.cKDTree(x)
     nn = [tree.query(point, k + 1, p=float('inf'))[0][k] for point in x]
     const = digamma(N) - digamma(k) + d * log(2)
-    return (const + d * np.mean(map(log, nn))) / log(base)
+    return (const + d * np.mean(np.log(nn))) / log(base)
 
 def centropy(x, y, k=3, base=2):
-  """ The classic K-L k-nearest neighbor continuous entropy estimator for the
-      entropy of X conditioned on Y.
-  """
-  hxy = entropy([xi + yi for (xi, yi) in zip(x, y)], k, base)
-  hy = entropy(y, k, base)
-  return hxy - hy
+    """ The classic K-L k-nearest neighbor continuous entropy estimator for the
+        entropy of X conditioned on Y.
+    """
+    x, y = to_np_array(x, y)
+    hxy = entropy([xi + yi for (xi, yi) in zip(x, y)], k, base)
+    hy = entropy(y, k, base)
+    return hxy - hy
 
 def column(xs, i):
-  return [[x[i]] for x in xs]
+    return [[x[i]] for x in xs]
 
 def tc(xs, k=3, base=2):
-  xis = [entropy(column(xs, i), k, base) for i in range(0, len(xs[0]))]
-  return np.sum(xis) - entropy(xs, k, base)
+    xis = [entropy(column(xs, i), k, base) for i in range(0, len(xs[0]))]
+    return np.sum(xis) - entropy(xs, k, base)
 
 def ctc(xs, y, k=3, base=2):
-  xis = [centropy(column(xs, i), y, k, base) for i in range(0, len(xs[0]))]
-  return np.sum(xis) - centropy(xs, y, k, base)
+    xis = [centropy(column(xs, i), y, k, base) for i in range(0, len(xs[0]))]
+    return np.sum(xis) - centropy(xs, y, k, base)
 
 def corex(xs, ys, k=3, base=2):
-  cxis = [mi(column(xs, i), ys, k, base) for i in range(0, len(xs[0]))]
-  return np.sum(cxis) - mi(xs, ys, k, base)
+    cxis = [mi(column(xs, i), ys, k, base) for i in range(0, len(xs[0]))]
+    return np.sum(cxis) - mi(xs, ys, k, base)
 
 def mi(x, y, k=3, base=2):
     """ Mutual information of x and y
@@ -57,6 +72,7 @@ def mi(x, y, k=3, base=2):
     """
     assert len(x) == len(y), "Lists should have same length"
     assert k <= len(x) - 1, "Set k smaller than num. samples - 1"
+    x, y = flatten(*to_np_array(x, y))
     intens = 1e-10  # small noise to break degeneracy, see doc.
     x = [list(p + intens * nr.rand(len(x[0]))) for p in x]
     y = [list(p + intens * nr.rand(len(y[0]))) for p in y]
@@ -75,6 +91,7 @@ def cmi(x, y, z, k=3, base=2):
     """
     assert len(x) == len(y), "Lists should have same length"
     assert k <= len(x) - 1, "Set k smaller than num. samples - 1"
+    x, y, z = flatten(*to_np_array(x, y, z))
     intens = 1e-10  # small noise to break degeneracy, see doc.
     x = [list(p + intens * nr.rand(len(x[0]))) for p in x]
     y = [list(p + intens * nr.rand(len(y[0]))) for p in y]
@@ -95,6 +112,7 @@ def kldiv(x, xp, k=3, base=2):
     assert k <= len(x) - 1, "Set k smaller than num. samples - 1"
     assert k <= len(xp) - 1, "Set k smaller than num. samples - 1"
     assert len(x[0]) == len(xp[0]), "Two distributions must have same dim."
+    x, xp = to_np_array(x, xp)
     d = len(x[0])
     n = len(x)
     m = len(xp)
@@ -103,7 +121,7 @@ def kldiv(x, xp, k=3, base=2):
     treep = ss.cKDTree(xp)
     nn = [tree.query(point, k + 1, p=float('inf'))[0][k] for point in x]
     nnp = [treep.query(point, k, p=float('inf'))[0][k - 1] for point in x]
-    return (const + d * np.mean(map(log, nnp)) - d * np.mean(map(log, nn))) / log(base)
+    return (const + d * np.mean(np.log(nnp)) - d * np.mean(np.log(nn))) / log(base)
 
 
 # DISCRETE ESTIMATORS
@@ -111,6 +129,7 @@ def entropyd(sx, base=2):
     """ Discrete entropy estimator
         Given a list of samples which can be any hashable object
     """
+    sx = to_np_array(sx)
     return entropyfromprobs(hist(sx), base=base)
 
 
@@ -118,32 +137,35 @@ def midd(x, y, base=2):
     """ Discrete mutual information estimator
         Given a list of samples which can be any hashable object
     """
+    x, y = flatten(*to_np_array(x, y))
     return -entropyd(zip(x, y), base) + entropyd(x, base) + entropyd(y, base)
 
 def cmidd(x, y, z):
     """ Discrete mutual information estimator
         Given a list of samples which can be any hashable object
     """
+    x, y, z = flatten(*to_np_array(x, y, z))
     return entropyd(zip(y, z)) + entropyd(zip(x, z)) - entropyd(zip(x, y, z)) - entropyd(z)
 
 def centropyd(x, y, base=2):
-  """ The classic K-L k-nearest neighbor continuous entropy estimator for the
-      entropy of X conditioned on Y.
-  """
-  return entropyd(zip(x, y), base) - entropyd(y, base)
+    """ The classic K-L k-nearest neighbor continuous entropy estimator for the
+        entropy of X conditioned on Y.
+    """
+    x, y = flatten(*to_np_array(x, y))
+    return entropyd(zip(x, y), base) - entropyd(y, base)
 
 def tcd(xs, base=2):
-  xis = [entropyd(column(xs, i), base) for i in range(0, len(xs[0]))]
-  hx = entropyd(xs, base)
-  return np.sum(xis) - hx
+    xis = [entropyd(column(xs, i), base) for i in range(0, len(xs[0]))]
+    hx = entropyd(xs, base)
+    return np.sum(xis) - hx
 
 def ctcd(xs, y, base=2):
-  xis = [centropyd(column(xs, i), y, base) for i in range(0, len(xs[0]))]
-  return np.sum(xis) - centropyd(xs, y, base)
+    xis = [centropyd(column(xs, i), y, base) for i in range(0, len(xs[0]))]
+    return np.sum(xis) - centropyd(xs, y, base)
 
 def corexd(xs, ys, base=2):
-  cxis = [midd(column(xs, i), ys, base) for i in range(0, len(xs[0]))]
-  return np.sum(cxis) - midd(xs, ys, base)
+    cxis = [midd(column(xs, i), ys, base) for i in range(0, len(xs[0]))]
+    return np.sum(cxis) - midd(xs, ys, base)
 
 def hist(sx):
     sx = discretize(sx)
@@ -151,7 +173,7 @@ def hist(sx):
     d = dict()
     for s in sx:
         if type(s) == list:
-          s = tuple(s)
+            s = tuple(s)
         d[s] = d.get(s, 0) + 1
     return map(lambda z: float(z) / len(sx), d.values())
 
@@ -173,13 +195,14 @@ def elog(x):
 def micd(x, y, k=3, base=2, warning=True):
     """ If x is continuous and y is discrete, compute mutual information
     """
+    x, y = flatten(*to_np_array(x, y))
     overallentropy = entropy(x, k, base)
 
     n = len(y)
     word_dict = dict()
     for i in range(len(y)):
-      if type(y[i]) == list:
-        y[i] = tuple(y[i])
+        if type(y[i]) == list:
+            y[i] = tuple(y[i])
     for sample in y:
         word_dict[sample] = word_dict.get(sample, 0) + 1. / n
     yvals = list(set(word_dict.keys()))
@@ -196,31 +219,34 @@ def micd(x, y, k=3, base=2, warning=True):
     return np.abs(mi)  # units already applied
 
 def midc(x, y, k=3, base=2, warning=True):
-  return micd(y, x, k, base, warning)
+    x, y = flatten(*to_np_array(x, y))
+    return micd(y, x, k, base, warning)
 
 def centropydc(x, y, k=3, base=2, warning=True):
-  return entropyd(x, base) - midc(x, y, k, base, warning)
+    x, y = flatten(*to_np_array(x, y))
+    return entropyd(x, base) - midc(x, y, k, base, warning)
 
 def centropycd(x, y, k=3, base=2, warning=True):
-  return entropy(x, k, base) - micd(x, y, k, base, warning)
+    x, y = flatten(*to_np_array(x, y))
+    return entropy(x, k, base) - micd(x, y, k, base, warning)
 
 def ctcdc(xs, y, k=3, base=2, warning=True):
-  xis = [centropydc(column(xs, i), y, k, base, warning) for i in range(0, len(xs[0]))]
-  return np.sum(xis) - centropydc(xs, y, k, base, warning)
+    xis = [centropydc(column(xs, i), y, k, base, warning) for i in range(0, len(xs[0]))]
+    return np.sum(xis) - centropydc(xs, y, k, base, warning)
 
 def ctccd(xs, y, k=3, base=2, warning=True):
-  xis = [centropycd(column(xs, i), y, k, base, warning) for i in range(0, len(xs[0]))]
-  return np.sum(xis) - centropycd(xs, y, k, base, warning)
+    xis = [centropycd(column(xs, i), y, k, base, warning) for i in range(0, len(xs[0]))]
+    return np.sum(xis) - centropycd(xs, y, k, base, warning)
 
 def corexcd(xs, ys, k=3, base=2, warning=True):
-  cxis = [micd(column(xs, i), ys, k, base, warning) for i in range(0, len(xs[0]))]
-  return np.sum(cxis) - micd(xs, ys, k, base, warning)
+    cxis = [micd(column(xs, i), ys, k, base, warning) for i in range(0, len(xs[0]))]
+    return np.sum(cxis) - micd(xs, ys, k, base, warning)
 
 def corexdc(xs, ys, k=3, base=2, warning=True):
-  #cxis = [midc(column(xs, i), ys, k, base, warning) for i in range(0, len(xs[0]))]
-  #joint = midc(xs, ys, k, base, warning)
-  #return np.sum(cxis) - joint
-  return tcd(xs, base) - ctcdc(xs, ys, k, base, warning)
+    #cxis = [midc(column(xs, i), ys, k, base, warning) for i in range(0, len(xs[0]))]
+    #joint = midc(xs, ys, k, base, warning)
+    #return np.sum(cxis) - joint
+    return tcd(xs, base) - ctcdc(xs, ys, k, base, warning)
 
 # UTILITY FUNCTIONS
 def vectorize(scalarlist):
@@ -273,11 +299,55 @@ def zip2(*args):
 def discretize(xs):
     def discretize_one(x):
         if len(x) > 1:
-            return tuple(x)
+            if isinstance(x[0], list):
+                return tuple([tuple(element) for element in x])
+            else:
+                return tuple(x)
         else:
-            return x[0]
+            if isinstance(x[0], list):
+                return tuple(x[0])
+            else:
+                return x[0]
     # discretize(xs) takes a list of vectors and makes it a list of tuples or scalars
     return [discretize_one(x) for x in xs]
 
-if __name__ == "__main__":
-    print("NPEET: Non-parametric entropy estimation toolbox. See readme.pdf for details on usage.")
+
+
+# Functions for adaptations with PyTorch:
+def to_np_array(*arrays):
+    """Transform torch tensors/Variables into numpy arrays"""
+    array_list = []
+    for array in arrays:
+        if isinstance(array, Variable):
+            if array.is_cuda:
+                array = array.cpu()
+            array = array.data
+        if isinstance(array, torch.FloatTensor) or isinstance(array, torch.LongTensor) or isinstance(array, torch.ByteTensor) or            isinstance(array, torch.cuda.FloatTensor) or isinstance(array, torch.cuda.LongTensor) or isinstance(array, torch.cuda.ByteTensor):
+            if array.is_cuda:
+                array = array.cpu()
+            array = array.numpy()
+        array_list.append(array)
+    if len(array_list) == 1:
+        array_list = array_list[0]
+    return array_list
+
+
+def flatten(*tensors):
+    """Flatten the tensor except the first dimension"""
+    new_tensors = []
+    for tensor in tensors:
+        if isinstance(tensor, torch.Tensor):
+            new_tensor = tensor.contiguous().view(tensor.shape[0], -1)
+        elif isinstance(tensor, np.ndarray):
+            new_tensor = tensor.reshape(tensor.shape[0], -1)
+        elif isinstance(tensor, list):
+            tensor = np.array(tensor)
+            new_tensor = tensor.reshape(tensor.shape[0], -1).tolist()
+        else:
+            print(tensor)
+            raise Exception("tensors must be either torch.Tensor or np.ndarray!")
+        new_tensors.append(new_tensor)
+    if len(new_tensors) == 1:
+        new_tensors = new_tensors[0]
+    return new_tensors
+
