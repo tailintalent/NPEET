@@ -1,5 +1,8 @@
-#!/bin/env python
-# Testing the NPEET estimators
+
+# coding: utf-8
+
+# In[ ]:
+
 
 import entropy_estimators as ee
 from math import log, pi
@@ -8,7 +11,7 @@ import numpy.random as nr
 import random
 from numpy.linalg import det
 
-# Some test cases to see usage and correctness
+# # Some test cases to see usage and correctness
 
 # Differential entropy estimator
 print("For a uniform distribution with width alpha, the differential entropy is log_2 alpha, setting alpha = 2")
@@ -110,10 +113,10 @@ print('95% conf int.\n', err)
 
 print("\n\nTest of the discrete entropy estimators\n")
 print("For z = y xor x, w/x, y uniform random binary, we should get H(x)=H(y)=H(z) = 1, H(x:y) etc = 0, H(x:y|z) = 1")
-x = [0, 0, 0, 0, 1, 1, 1, 1]
-y = [0, 1, 0, 1, 0, 1, 0, 1]
-z = [0, 1, 0, 1, 1, 0, 1, 0]
-print("H(x), H(y), H(z)", ee.entropyd(x), ee.entropyd(y), ee.entropyd(z))
+x = np.expand_dims(np.array([0, 0, 0, 0, 1, 1, 1, 1]),1).tolist()
+y = np.expand_dims(np.array([0, 1, 0, 1, 0, 1, 0, 1]),1).tolist()
+z = np.expand_dims(np.array([0, 1, 0, 1, 1, 0, 1, 0]),1).tolist()
+# print("H(x), H(y), H(z)", ee.entropyd(x), ee.entropyd(y), ee.entropyd(z))
 print("H(x:y), etc", ee.midd(x, y), ee.midd(z, y), ee.midd(x, z))
 print("H(x:y|z), etc", ee.cmidd(x, y, z), ee.cmidd(z, y, x), ee.cmidd(x, z, y))
 
@@ -127,3 +130,4 @@ print('result:', ee.kldiv(sample1, sample2))
 print("should be infinite for totally disjoint distributions (but this estimator has an upper bound like log(dist) between disjoint prob. masses)")
 sample2 = [[3 + 2 * random.random()] for i in range(300)]
 print('result:', ee.kldiv(sample1, sample2))
+
